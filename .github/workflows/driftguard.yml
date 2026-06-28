@@ -1,0 +1,131 @@
+name: DriftGuard
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  performance-regression:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build perf collector
+        run: |
+          cmake -S cpp -B cpp/build
+          cmake --build cpp/build
+
+      - name: Resolve benchmark SHAs
+        id: refs
+        run: |
+          echo "candidate=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            echo "baseline=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
+          else
+            echo "baseline=none" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore DriftGuard baseline history
+        uses: actions/cache@v4
+        with:
+          path: .driftguard/history
+          key: driftguard-${{ github.base_ref || github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            driftguard-${{ github.base_ref || github.ref_name }}-
+            driftguard-
+
+      - name: Collect benchmark stream
+        run: |
+          ./cpp/build/driftguard-perf \
+            --commit "${{ steps.refs.outputs.candidate }}" \
+            --function processOrder \
+            --iterations 50 \
+            --prefault-stack \
+            -- ./cpp/build/order-service-bench --variant baseline --orders 100000 --repeat 60 --quiet > candidate.jsonl
+
+      - name: Analyze regressions
+        id: driftguard
+        continue-on-error: true
+        run: |
+          python -m pip install -e .
+          set +e
+          python -m driftguard.cli ci \
+            --candidate-stream candidate.jsonl \
+            --candidate "${{ steps.refs.outputs.candidate }}" \
+            --suite order-service \
+            --store .driftguard/history \
+            --bootstrap-if-missing \
+            --promote-on-pass \
+            --min-samples 30 \
+            --warmup 5 \
+            --format json \
+            --output driftguard-report.json
+          driftguard_status=$?
+          python -m driftguard.cli ci \
+            --candidate-stream candidate.jsonl \
+            --candidate "${{ steps.refs.outputs.candidate }}" \
+            --suite order-service \
+            --store .driftguard/history \
+            --bootstrap-if-missing \
+            --min-samples 30 \
+            --warmup 5 \
+            --format markdown \
+            --output regression_report.md
+          exit "$driftguard_status"
+
+      - name: Render dashboard
+        if: always() && hashFiles('driftguard-report.json') != ''
+        working-directory: typescript
+        run: |
+          npm install
+          npm run build
+          node dist/dashboard/render-dashboard.js ../driftguard-report.json ../driftguard-dashboard.html
+
+      - name: Comment on PR
+        if: always() && github.event_name == 'pull_request' && hashFiles('regression_report.md') != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- driftguard:report -->';
+            const body = `${marker}\n${fs.readFileSync('regression_report.md', 'utf8')}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
+            const existing = comments.data.find(comment => comment.body && comment.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Upload dashboard
+        if: always() && hashFiles('driftguard-dashboard.html') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: driftguard-dashboard
+          path: driftguard-dashboard.html
+
+      - name: Upload baseline artifact on main
+        if: always() && github.ref == 'refs/heads/main' && hashFiles('candidate.jsonl') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: driftguard-baseline
+          path: candidate.jsonl
+
+      - name: Fail on regression
+        if: steps.driftguard.outcome == 'failure'
+        run: exit 1

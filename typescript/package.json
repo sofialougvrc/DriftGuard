@@ -1,0 +1,14 @@
+{
+  "name": "@driftguard/ci",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "render-comment": "node dist/github/pr-comment.js",
+    "render-dashboard": "node dist/dashboard/render-dashboard.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

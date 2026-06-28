@@ -1,0 +1,27 @@
+version: 1
+policy:
+  min_effect: 0.05
+  sprt:
+    alpha: 0.01
+    beta: 0.05
+  mann_whitney:
+    p_value: 0.05
+  quality:
+    min_samples: 20
+    warmup_iterations: 3
+    outlier_mad_threshold: 6.0
+    max_outlier_fraction: 0.15
+    max_cv: 0.20
+    max_mad_ratio: 0.15
+benchmarks:
+  - name: order-service
+    command: ./benchmarks/order_service_bench
+    functions:
+      - processOrder
+      - loadCatalog
+    metrics:
+      - latency_ns
+reporting:
+  fail_ci_on_regression: true
+  github_comment: true
+  dashboard_artifact: driftguard-dashboard.html

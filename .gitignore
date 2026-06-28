@@ -1,0 +1,17 @@
+.pytest_cache/
+__pycache__/
+*.pyc
+cpp/build/
+typescript/dist/
+typescript/node_modules/
+.driftguard/
+work/
+*.db
+baseline.jsonl
+candidate.jsonl
+order-baseline.jsonl
+order-candidate.jsonl
+driftguard-report.json
+driftguard-dashboard.html
+driftguard.sarif
+driftguard-junit.xml
