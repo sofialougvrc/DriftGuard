@@ -203,14 +203,22 @@ The example workflow in `.github/workflows/driftguard.yml` shows the intended fl
 
 1. Build benchmark target.
 2. Resolve real git SHAs with `git rev-parse`.
-3. Restore recorded baseline history from a branch-scoped GitHub Actions cache.
+3. Download the latest non-expired `driftguard-baseline` GitHub Actions artifact into `.driftguard/history`.
 4. Collect the candidate benchmark stream with the real candidate SHA.
 5. Run `python -m driftguard.cli ci`.
 6. Write JSON and Markdown reports even when a regression is found.
 7. Post or update a PR comment with `actions/github-script`.
-8. Upload dashboard and baseline artifacts.
+8. Upload dashboard artifacts, and on `main`, upload the updated `.driftguard/history` as the next `driftguard-baseline` artifact.
 
-The TypeScript code still provides a dependency-free GitHub REST implementation, and the workflow uses `actions/github-script` as the minimal production bot path. Both update an existing DriftGuard PR comment when one exists, keeping PR discussion clean across repeated pushes.
+The workflow uses `actions/github-script` as the minimal production bot path: it reads `regression_report.md`, posts it to the PR, and updates the existing DriftGuard comment on repeated pushes. The TypeScript code still provides a dependency-free GitHub REST implementation for teams that prefer a Node entrypoint.
+
+Baseline persistence is handled by artifacts rather than local files:
+
+- PR runs download the latest non-expired `driftguard-baseline` artifact.
+- `main` runs promote passing candidate measurements into `.driftguard/history`.
+- `main` runs upload `.driftguard/history` as the next `driftguard-baseline` artifact.
+
+For long retention, queryable history, or multi-repo baselines, replace the artifact step with the SQLite branch/S3 storage mode.
 
 ## Report Formats
 

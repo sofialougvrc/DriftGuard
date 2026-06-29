@@ -38,14 +38,44 @@ jobs:
             echo "baseline=none" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Restore DriftGuard baseline history
-        uses: actions/cache@v4
+      - name: Download latest baseline artifact
+        id: baseline-artifact
+        uses: actions/github-script@v7
         with:
-          path: .driftguard/history
-          key: driftguard-${{ github.base_ref || github.ref_name }}-${{ github.run_id }}
-          restore-keys: |
-            driftguard-${{ github.base_ref || github.ref_name }}-
-            driftguard-
+          script: |
+            const fs = require('fs');
+            fs.mkdirSync('.driftguard/history', { recursive: true });
+
+            const { owner, repo } = context.repo;
+            const artifacts = await github.rest.actions.listArtifactsForRepo({
+              owner,
+              repo,
+              name: 'driftguard-baseline',
+              per_page: 100,
+            });
+            const latest = artifacts.data.artifacts
+              .filter(artifact => !artifact.expired)
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+            if (!latest) {
+              core.notice('No driftguard-baseline artifact found; this run can bootstrap one.');
+              core.setOutput('found', 'false');
+              return;
+            }
+
+            const download = await github.rest.actions.downloadArtifact({
+              owner,
+              repo,
+              artifact_id: latest.id,
+              archive_format: 'zip',
+            });
+            fs.writeFileSync('driftguard-baseline.zip', Buffer.from(download.data));
+            core.notice(`Downloaded baseline artifact ${latest.id} from ${latest.created_at}.`);
+            core.setOutput('found', 'true');
+
+      - name: Restore baseline history
+        if: steps.baseline-artifact.outputs.found == 'true'
+        run: unzip -o driftguard-baseline.zip -d .driftguard/history
 
       - name: Collect benchmark stream
         run: |
@@ -124,7 +154,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: driftguard-baseline
-          path: candidate.jsonl
+          path: .driftguard/history
+          retention-days: 30
 
       - name: Fail on regression
         if: steps.driftguard.outcome == 'failure'
