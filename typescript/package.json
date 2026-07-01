@@ -2,7 +2,7 @@
   "name": "@driftguard/ci",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "render-comment": "node dist/github/pr-comment.js",
