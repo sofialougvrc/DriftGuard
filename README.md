@@ -2,15 +2,19 @@
 
 Continuous performance regression intelligence for CI/CD.
 
-DriftGuard decides whether a change made code meaningfully slower with statistical evidence, not a flat threshold. It combines:
+DriftGuard is a performance regression detection system for teams that ship code frequently and need to know when a pull request made a critical path meaningfully slower. Instead of firing noisy alerts when a benchmark crosses a fixed percentage threshold, DriftGuard treats benchmark output as statistical evidence. It keeps collecting measurements until there is enough confidence to call a regression, call the change safe, or block the decision because the benchmark data is too noisy.
 
-- Sequential Probability Ratio Test (SPRT) for evidence accumulation across benchmark runs.
-- Mann-Whitney U tests for noisy, non-normal benchmark distributions.
-- Bayesian change-point detection to identify the commit that most likely introduced a regression.
-- Warmup trimming, robust outlier filtering, sample-size gates, and noise diagnostics before any regression is trusted.
-- Environment fingerprinting for load, CPU governor, perf permissions, platform, and runtime metadata.
-- Linux perf event instrumentation for sub-microsecond timing and hardware counters.
-- TypeScript GitHub and dashboard surfaces for PR feedback.
+Built as a production-style CI tool rather than a single benchmark script. A native C++ collector records high-resolution latency samples and optional Linux hardware counters. A Python analysis pipeline applies quality gates, sequential hypothesis testing, non-parametric distribution comparison, and commit-level attribution. GitHub Actions then persists baselines across runs, compares candidate measurements, and posts structured pull request reports.
+
+What DriftGuard demonstrates:
+
+- **Sequential statistical decision-making:** uses Wald's Sequential Probability Ratio Test (SPRT) to accumulate evidence across benchmark runs and decide only when confidence is sufficient.
+- **Robust benchmark comparison:** uses Mann-Whitney U instead of a t-test so noisy, skewed, non-normal latency distributions do not invalidate the result.
+- **Regression attribution:** uses Bayesian change-point detection to identify the commit SHA most likely to have introduced a slowdown.
+- **Measurement quality controls:** trims warmup iterations, filters robust outliers, enforces minimum sample counts, checks coefficient of variation, and reports when data quality is too weak to trust.
+- **Native performance instrumentation:** includes a C++20 collector with high-resolution timing, stack prefaulting, optional Linux `perf_event_open` counters, CPU affinity controls, and realtime scheduling options for self-hosted runners.
+- **CI/CD integration:** persists baselines with GitHub Actions artifacts, exports JSON/Markdown/SARIF/JUnit reports, and posts or updates PR comments with regression summaries.
+- **Multi-language systems work:** combines C++ instrumentation, Python statistical analysis, TypeScript reporting surfaces, SQLite history storage, and GitHub Actions automation.
 
 Example PR output:
 
