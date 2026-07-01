@@ -84,7 +84,7 @@ export function renderComment(report: DriftGuardReport): string {
 }
 
 async function githubRequest<T>(method: string, path: string, token: string, body?: unknown): Promise<T> {
-  const response = await fetch(`https://api.github.com${path}`, {
+  const request: RequestInit = {
     method,
     headers: {
       "authorization": `Bearer ${token}`,
@@ -92,8 +92,12 @@ async function githubRequest<T>(method: string, path: string, token: string, bod
       "content-type": "application/json",
       "x-github-api-version": "2022-11-28",
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  };
+  if (body !== undefined) {
+    request.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(`https://api.github.com${path}`, request);
 
   if (!response.ok) {
     const text = await response.text();
