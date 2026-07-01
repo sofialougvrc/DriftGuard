@@ -241,7 +241,7 @@ python3 -m driftguard.cli analyze examples/benchmark_samples.jsonl --format juni
 
 ## Reliability Gates
 
-Production-grade results depend on disciplined benchmark input. DriftGuard now applies these safeguards before it marks a regression as trusted:
+Results depend on disciplined benchmark input. DriftGuard now applies these safeguards before it marks a regression as trusted:
 
 - `--warmup`: discard early iterations before analysis.
 - `--min-samples`: require enough retained samples on both baseline and candidate.
