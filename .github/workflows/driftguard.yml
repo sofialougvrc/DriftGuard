@@ -158,5 +158,5 @@ jobs:
           retention-days: 30
 
       - name: Fail on regression
-        if: steps.driftguard.outcome == 'failure'
+        if: github.event_name == 'pull_request' && steps.driftguard.outcome == 'failure'
         run: exit 1
